@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Béthanie Puzzle - 伯大尼拼圖 (Game Edition)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -12,6 +12,10 @@
             font-family: 'Noto Sans TC', sans-serif;
             background: #f8fafc;
             overflow-x: hidden; /* 防止特效導致捲軸 */
+            /* 針對手機優化：禁止長按選單與文字選取 */
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         /* --- 拼圖板容器 (4:3) --- */
@@ -109,17 +113,27 @@
             background-size: 240px 180px; 
             border-radius: 6px;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            touch-action: none;
-            transition: transform 0.2s;
+            touch-action: none; /* 禁用預設觸控行為，讓手動拖曳生效 */
+            transition: transform 0.2s, box-shadow 0.2s;
             flex-shrink: 0;
+            position: relative;
+        }
+
+        /* 觸控拖曳中的特殊狀態 */
+        .puzzle-piece.dragging {
+            position: fixed !important;
+            z-index: 5000 !important;
+            pointer-events: none; /* 防止自己擋住 document.elementFromPoint */
+            transform: scale(1.15) !important;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
+            opacity: 0.9;
         }
 
         .puzzle-piece:active {
             cursor: grabbing;
-            transform: scale(1.05);
         }
 
-        .puzzle-piece:hover {
+        .puzzle-piece:hover:not(.placed) {
             transform: scale(1.1) rotate(2deg);
             box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
             z-index: 10;
@@ -134,6 +148,9 @@
             border-radius: 0;
             transform: none !important;
             z-index: 1;
+            position: relative !important;
+            top: 0 !important;
+            left: 0 !important;
         }
 
         .glass-morphism {
@@ -244,7 +261,7 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                <!-- 相片卡片 Template -->
+                <!-- 相片卡片 -->
                 <div class="group relative overflow-hidden rounded-2xl shadow-lg bg-white cursor-pointer transform hover:-translate-y-1 transition duration-300" onclick="startPuzzle('https://www.hkapa.edu/f/academy/69992/1334c750/001.jpg?auto=format&fit=crop&w=600&q=80', '伯大尼古蹟校園', 'Béthanie Campus')">
                     <div class="relative h-64 overflow-hidden">
                         <img src="https://www.hkapa.edu/f/academy/69992/1334c750/001.jpg?auto=format&fit=crop&w=600&q=80" alt="伯大尼古蹟校園" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
@@ -355,11 +372,11 @@
             </p>
 
             <!-- 主遊戲容器 -->
-            <div class="w-full max-w-6xl bg-white p-6 md:p-10 rounded-3xl shadow-2xl flex flex-col space-y-10 items-center border border-gray-100 relative overflow-hidden">
+            <div class="w-full max-w-6xl bg-white p-6 md:p-10 rounded-3xl shadow-2xl flex flex-col space-y-10 items-center border border-gray-100 relative">
                 <!-- 裝飾背景 -->
                 <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full filter blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
                 
-                <!-- 佈局容器：拼圖板 | 碎片池(寬螢幕) | 參考圖 -->
+                <!-- 佈局容器 -->
                 <div class="flex flex-col lg:flex-row items-center justify-center gap-8 xl:gap-12 w-full relative z-10">
                     
                     <!-- 1. 拼圖板 (放置區) -->
@@ -433,7 +450,7 @@
                     <p class="mb-1">資料及圖片由以下網頁提供：</p>
                     <p class="text-xs mb-1">Information and images provided by:</p>
                     <a href="https://www.hkapa.edu/tch/academy-stories/the-b-thanie-celebrates150-years-nurturing-the-performing-arts-talents" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 hover:underline break-all">
-                        伯大尼走過150 年 培育演藝人才 The Béthanie Celebrates 150 Years Nurturing the Performing Arts Talents (HKAPA)
+                        伯大尼走過150 年 培育演藝人才 (HKAPA)
                     </a>
                 </div>
             </div>
@@ -458,7 +475,11 @@
         const poolPieceWidth = slotWidth * poolScale; // 80px
         const poolPieceHeight = slotHeight * poolScale; // 60px
 
-        // --- 音效系統 (使用 Web Audio API) ---
+        // 觸控拖曳全域變數
+        let touchTarget = null;
+        let currentOverSlot = null;
+
+        // --- 音效系統 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         
         function playTone(freq, type, duration, vol = 0.1) {
@@ -509,7 +530,7 @@
             }
         }
 
-        // --- 計時器邏輯 ---
+        // --- 計時器 ---
         function startTimer() {
             stopTimer();
             seconds = 0;
@@ -520,9 +541,7 @@
             }, 1000);
         }
 
-        function stopTimer() {
-            clearInterval(timerInterval);
-        }
+        function stopTimer() { clearInterval(timerInterval); }
 
         function updateTimerDisplay() {
             const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -532,16 +551,13 @@
             document.getElementById('modal-time').innerText = timeStr;
         }
 
-        // --- 遊戲邏輯 ---
+        // --- 遊戲初始化 ---
         function startPuzzle(imgUrl, titleZh, titleEn) {
             currentImg = imgUrl;
             document.getElementById('reference-img').src = imgUrl;
             document.getElementById('puzzle-title-zh').innerText = titleZh;
             document.getElementById('puzzle-title-en').innerText = titleEn + ' Puzzle';
-            
-            // 嘗試啟動 AudioContext (需要使用者互動)
             if (audioCtx.state === 'suspended') audioCtx.resume();
-            
             showSection('puzzle');
             initGame();
         }
@@ -552,24 +568,23 @@
             isGameActive = true;
             document.getElementById('move-count').innerText = '0';
             document.getElementById('puzzle-board').style.gap = '2px';
-            
             updateStatus('將碎片拖曳到正確的位置！', 'Drag pieces to the correct position!');
             startTimer();
 
-            // 重置 Slot
             const slots = document.querySelectorAll('.slot');
             slots.forEach(slot => {
                 slot.innerHTML = '';
                 slot.style.border = '1px dashed #94a3b8';
                 slot.classList.remove('drag-over');
+                // Desktop
+                slot.addEventListener('dragover', handleDragOver);
+                slot.addEventListener('dragleave', handleDragLeave);
+                slot.addEventListener('drop', handleDrop);
             });
             
-            // 生成碎片
             const pool = document.getElementById('pieces-pool');
             pool.innerHTML = '';
-
-            const pieceIndices = Array.from({length: gridSize * gridSize}, (_, i) => i);
-            pieceIndices.sort(() => Math.random() - 0.5);
+            const pieceIndices = Array.from({length: 9}, (_, i) => i).sort(() => Math.random() - 0.5);
 
             pieceIndices.forEach(idx => {
                 const piece = document.createElement('div');
@@ -577,25 +592,21 @@
                 piece.id = `piece-${idx}`;
                 piece.draggable = true;
                 
-                const row = Math.floor(idx / gridSize);
-                const col = idx % gridSize;
-                
+                const row = Math.floor(idx / 3);
+                const col = idx % 3;
                 piece.style.backgroundImage = `url(${currentImg})`;
+                piece.style.backgroundPosition = `-${col * poolPieceWidth}px -${row * poolPieceHeight}px`;
                 
-                // 計算 Pool 中的背景位置
-                const bgX = col * poolPieceWidth;
-                const bgY = row * poolPieceHeight;
-                piece.style.backgroundPosition = `-${bgX}px -${bgY}px`;
-                
+                // Desktop Events
                 piece.addEventListener('dragstart', handleDragStart);
-                piece.addEventListener('mousedown', () => sounds.click()); // 點擊音效
-                pool.appendChild(piece);
-            });
+                piece.addEventListener('mousedown', () => sounds.click());
 
-            slots.forEach(slot => {
-                slot.addEventListener('dragover', handleDragOver);
-                slot.addEventListener('dragleave', handleDragLeave);
-                slot.addEventListener('drop', handleDrop);
+                // Mobile Touch Events
+                piece.addEventListener('touchstart', handleTouchStart, {passive: false});
+                piece.addEventListener('touchmove', handleTouchMove, {passive: false});
+                piece.addEventListener('touchend', handleTouchEnd);
+
+                pool.appendChild(piece);
             });
         }
 
@@ -603,36 +614,91 @@
             document.getElementById('puzzle-status').innerHTML = `${zh}<br><span class="text-xs opacity-75">${en}</span>`;
         }
 
-        function handleDragStart(e) {
-            e.dataTransfer.setData('text/plain', e.target.id);
-            e.dataTransfer.effectAllowed = 'move';
+        // --- Desktop DnD 邏輯 ---
+        function handleDragStart(e) { e.dataTransfer.setData('text/plain', e.target.id); }
+        function handleDragOver(e) { e.preventDefault(); if (!e.currentTarget.hasChildNodes()) e.currentTarget.classList.add('drag-over'); }
+        function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+        function handleDrop(e) {
+            e.preventDefault();
+            const pieceId = e.dataTransfer.getData('text/plain');
+            const targetSlot = e.target.closest('.slot');
+            processPlacement(pieceId, targetSlot);
         }
 
-        function handleDragOver(e) {
+        // --- Mobile Touch 核心優化邏輯 ---
+        function handleTouchStart(e) {
+            if (!isGameActive) return;
+            touchTarget = e.currentTarget;
+            if (touchTarget.classList.contains('placed')) return;
+            
+            e.preventDefault(); // 禁止頁面捲動
+            sounds.click();
+            touchTarget.classList.add('dragging');
+            
+            const touch = e.touches[0];
+            movePieceTo(touch.clientX, touch.clientY);
+        }
+
+        function handleTouchMove(e) {
+            if (!touchTarget || !isGameActive) return;
             e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (!e.currentTarget.hasChildNodes()) {
-                e.currentTarget.classList.add('drag-over');
+            const touch = e.touches[0];
+            movePieceTo(touch.clientX, touch.clientY);
+
+            // 手指正下方偵測 (雖然碎片已移至上方，但我們偵測手指接觸點下的格子)
+            const el = document.elementFromPoint(touch.clientX, touch.clientY);
+            const slot = el ? el.closest('.slot') : null;
+
+            if (currentOverSlot && currentOverSlot !== slot) {
+                currentOverSlot.classList.remove('drag-over');
+            }
+
+            if (slot && !slot.hasChildNodes()) {
+                slot.classList.add('drag-over');
+                currentOverSlot = slot;
+            } else {
+                currentOverSlot = null;
             }
         }
 
-        function handleDragLeave(e) {
-            e.currentTarget.classList.remove('drag-over');
+        function handleTouchEnd(e) {
+            if (!touchTarget || !isGameActive) return;
+            
+            const pieceId = touchTarget.id;
+            const targetSlot = currentOverSlot;
+
+            touchTarget.classList.remove('dragging');
+            if (currentOverSlot) currentOverSlot.classList.remove('drag-over');
+            
+            processPlacement(pieceId, targetSlot);
+            
+            touchTarget = null;
+            currentOverSlot = null;
         }
 
-        function handleDrop(e) {
-            e.preventDefault();
-            e.currentTarget.classList.remove('drag-over');
+        // 優化後的位移：強制讓碎片懸浮在手指上方 100px
+        function movePieceTo(x, y) {
+            const offsetX = 40; // 碎片寬度 80 的一半
+            const offsetY = 100; // 向上偏移 100 像素，避開手指遮擋
             
-            if (!isGameActive) return;
+            touchTarget.style.left = (x - offsetX) + 'px';
+            touchTarget.style.top = (y - offsetY) + 'px';
+        }
 
-            const pieceId = e.dataTransfer.getData('text/plain');
+        // --- 核心判定邏輯 (滑鼠/觸控共用) ---
+        function processPlacement(pieceId, targetSlot) {
             const piece = document.getElementById(pieceId);
-            const targetSlot = e.target.closest('.slot');
+            if (!targetSlot || targetSlot.hasChildNodes()) {
+                // 回歸原位 (觸控時需清除固定定位樣式)
+                if (touchTarget) {
+                    piece.style.position = '';
+                    piece.style.top = '';
+                    piece.style.left = '';
+                    piece.style.zIndex = '';
+                }
+                return;
+            }
 
-            if (!targetSlot || targetSlot.hasChildNodes()) return;
-
-            // 增加步數
             moveCount++;
             document.getElementById('move-count').innerText = moveCount;
 
@@ -640,160 +706,104 @@
             const slotIndex = parseInt(targetSlot.getAttribute('data-index'));
 
             if (pieceIndex === slotIndex) {
-                // 正確
                 sounds.drop();
                 targetSlot.appendChild(piece);
                 piece.classList.add('placed', 'animate-pop');
                 piece.draggable = false;
                 
-                const row = Math.floor(pieceIndex / gridSize);
-                const col = pieceIndex % gridSize;
+                // 移除手機事件監聽
+                piece.removeEventListener('touchstart', handleTouchStart);
+                piece.removeEventListener('touchmove', handleTouchMove);
+                piece.removeEventListener('touchend', handleTouchEnd);
                 
-                const bgX = col * slotWidth;
-                const bgY = row * slotHeight;
-                piece.style.backgroundPosition = `-${bgX}px -${bgY}px`;
+                const col = pieceIndex % 3;
+                const row = Math.floor(pieceIndex / 3);
+                piece.style.backgroundPosition = `-${col * slotWidth}px -${row * slotHeight}px`;
+                piece.style.position = '';
+                piece.style.top = '';
+                piece.style.left = '';
                 
                 placedCount++;
                 checkWin();
             } else {
-                // 錯誤
                 sounds.error();
                 piece.classList.add('animate-shake');
                 setTimeout(() => piece.classList.remove('animate-shake'), 400);
-                
                 updateStatus('❌ 位置不對喔！', 'Wrong position!');
-                setTimeout(() => {
-                    if (isGameActive && placedCount < 9) {
-                        updateStatus(`繼續加油！目前進度：${placedCount}/9`, `Keep going! Progress: ${placedCount}/9`);
-                    }
-                }, 1000);
+                
+                if (touchTarget) {
+                    piece.style.position = '';
+                    piece.style.top = '';
+                    piece.style.left = '';
+                    piece.style.zIndex = '';
+                }
             }
         }
 
         function checkWin() {
-            if (placedCount === gridSize * gridSize) {
+            if (placedCount === 9) {
                 isGameActive = false;
                 stopTimer();
                 sounds.win();
-                
                 updateStatus('🎉 完成！', 'Completed!');
-                
-                // 視覺整合
                 document.getElementById('puzzle-board').style.gap = '0';
                 document.querySelectorAll('.slot').forEach(s => s.style.border = 'none');
-                
-                if (window.innerWidth < 1024) {
-                    document.getElementById('pieces-dock').classList.add('minimized');
-                }
-
-                // 更新 Modal 數據
                 document.getElementById('modal-moves').innerText = moveCount;
-
-                // 觸發慶祝特效
                 fireConfetti();
-                
-                // 延遲顯示視窗
-                setTimeout(() => {
-                    openModal();
-                }, 800);
+                setTimeout(openModal, 800);
             }
         }
 
-        function resetGame(force = false) {
-            if (force) {
-                closeModal();
-                if (window.innerWidth < 1024) {
-                    document.getElementById('pieces-dock').classList.remove('minimized');
-                }
-                initGame();
-            }
-        }
-
-        // --- Modal Control ---
+        // --- 彈窗與特效 ---
+        function resetGame(force = false) { if (force) { closeModal(); initGame(); } }
         function openModal() {
             const modal = document.getElementById('win-modal');
             modal.classList.remove('hidden');
-            // Force reflow
-            void modal.offsetWidth;
-            modal.classList.remove('opacity-0');
-            modal.querySelector('div').classList.remove('scale-90');
-            modal.querySelector('div').classList.add('scale-100');
+            setTimeout(() => { modal.classList.remove('opacity-0'); modal.querySelector('div').classList.add('scale-100'); }, 10);
         }
-
         function closeModal() {
             const modal = document.getElementById('win-modal');
             modal.classList.add('opacity-0');
             modal.querySelector('div').classList.add('scale-90');
-            modal.querySelector('div').classList.remove('scale-100');
-            setTimeout(() => {
-                modal.classList.add('hidden');
-            }, 300);
+            setTimeout(() => modal.classList.add('hidden'), 300);
         }
 
-        // --- 簡易 Confetti 系統 ---
         function fireConfetti() {
             const canvas = document.getElementById('confetti-canvas');
             const ctx = canvas.getContext('2d');
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-
             const particles = [];
-            const colors = ['#6366f1', '#a855f7', '#ec4899', '#f43f5e', '#fbbf24'];
-
+            const colors = ['#6366f1', '#a855f7', '#ec4899', '#fbbf24'];
             for (let i = 0; i < 150; i++) {
                 particles.push({
-                    x: window.innerWidth / 2,
-                    y: window.innerHeight / 2,
-                    w: Math.random() * 10 + 5,
-                    h: Math.random() * 10 + 5,
-                    color: colors[Math.floor(Math.random() * colors.length)],
-                    vx: (Math.random() - 0.5) * 20,
-                    vy: (Math.random() - 0.5) * 20 - 5,
-                    grav: 0.25,
-                    rot: Math.random() * 360,
-                    drot: (Math.random() - 0.5) * 10
+                    x: canvas.width/2, y: canvas.height/2,
+                    w: Math.random()*10+5, h: Math.random()*10+5,
+                    color: colors[Math.floor(Math.random()*colors.length)],
+                    vx: (Math.random()-0.5)*18, vy: (Math.random()-0.5)*18-5,
+                    grav: 0.2, rot: Math.random()*360, drot: (Math.random()-0.5)*10
                 });
             }
-
-            let animationId;
             function update() {
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                let active = false;
-                
+                ctx.clearRect(0,0,canvas.width,canvas.height);
+                let alive = false;
                 particles.forEach(p => {
-                    p.x += p.vx;
-                    p.y += p.vy;
-                    p.vy += p.grav;
-                    p.rot += p.drot;
-                    p.vx *= 0.96; // air resistance
-                    p.vy *= 0.96;
-
-                    if (p.y < canvas.height) active = true;
-
-                    ctx.save();
-                    ctx.translate(p.x, p.y);
-                    ctx.rotate(p.rot * Math.PI / 180);
-                    ctx.fillStyle = p.color;
-                    ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
-                    ctx.restore();
+                    p.x+=p.vx; p.y+=p.vy; p.vy+=p.grav; p.rot+=p.drot;
+                    if(p.y < canvas.height) {
+                        alive = true;
+                        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot*Math.PI/180);
+                        ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h); ctx.restore();
+                    }
                 });
-
-                if (active) {
-                    animationId = requestAnimationFrame(update);
-                } else {
-                    ctx.clearRect(0, 0, canvas.width, canvas.height);
-                }
+                if(alive) requestAnimationFrame(update);
             }
             update();
         }
-        
-        // Resize listener for confetti
         window.addEventListener('resize', () => {
              const canvas = document.getElementById('confetti-canvas');
              canvas.width = window.innerWidth;
              canvas.height = window.innerHeight;
         });
-
     </script>
 </body>
 </html>

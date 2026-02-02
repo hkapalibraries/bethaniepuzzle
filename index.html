@@ -11,7 +11,7 @@
         body {
             font-family: 'Noto Sans TC', sans-serif;
             background: #f8fafc;
-            overflow-x: hidden; /* 防止特效導致捲軸 */
+            overflow-x: hidden;
             /* 針對手機優化：禁止長按選單與文字選取 */
             -webkit-touch-callout: none;
             -webkit-user-select: none;
@@ -36,16 +36,20 @@
             height: 75px;
             border: 1px dashed #94a3b8;
             box-sizing: border-box;
-            transition: border 0.3s ease, background-color 0.2s;
+            transition: all 0.2s ease;
         }
         
-        /* 拖曳時高亮目標槽位 */
+        /* PC 拖曳高亮樣式 */
         .slot.drag-over {
-            background-color: rgba(99, 102, 241, 0.2);
-            border-color: #6366f1;
+            background-color: rgba(99, 102, 241, 0.2) !important;
+            border-color: #6366f1 !important;
         }
 
-        /* 碎片池容器 */
+        /* 手機選取高亮樣式 */
+        .has-selection .slot:not(:has(*)):active {
+            background-color: rgba(99, 102, 241, 0.1);
+        }
+
         .pieces-pool-dock {
             z-index: 100;
             background: rgba(255, 255, 255, 0.9);
@@ -55,7 +59,6 @@
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        /* 小螢幕樣式 */
         @media (max-width: 1023px) {
             .pieces-pool-dock {
                 position: fixed;
@@ -80,7 +83,6 @@
             }
         }
 
-        /* 寬螢幕樣式 */
         @media (min-width: 1024px) {
             .pieces-pool-dock {
                 position: relative;
@@ -105,7 +107,6 @@
             .dock-toggle-btn-container { display: none; }
         }
 
-        /* 拼圖碎片 */
         .puzzle-piece {
             width: 80px;
             height: 60px;
@@ -113,30 +114,20 @@
             background-size: 240px 180px; 
             border-radius: 6px;
             box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            touch-action: none; /* 禁用預設觸控行為，讓手動拖曳生效 */
             transition: transform 0.2s, box-shadow 0.2s;
             flex-shrink: 0;
             position: relative;
-        }
-
-        /* 觸控拖曳中的特殊狀態 */
-        .puzzle-piece.dragging {
-            position: fixed !important;
-            z-index: 5000 !important;
-            pointer-events: none; /* 防止自己擋住 document.elementFromPoint */
-            transform: scale(1.15) !important;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4);
-            opacity: 0.9;
         }
 
         .puzzle-piece:active {
             cursor: grabbing;
         }
 
-        .puzzle-piece:hover:not(.placed) {
-            transform: scale(1.1) rotate(2deg);
-            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
-            z-index: 10;
+        /* 手機模式選中樣式 */
+        .puzzle-piece.selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 0 4px #6366f1, 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+            z-index: 50;
         }
 
         .puzzle-piece.placed {
@@ -149,8 +140,6 @@
             transform: none !important;
             z-index: 1;
             position: relative !important;
-            top: 0 !important;
-            left: 0 !important;
         }
 
         .glass-morphism {
@@ -179,7 +168,6 @@
             height: 225px;
         }
 
-        /* Confetti Canvas */
         #confetti-canvas {
             position: fixed;
             top: 0;
@@ -190,7 +178,6 @@
             z-index: 9999;
         }
 
-        /* Modal Overlay */
         #win-modal {
             background: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(4px);
@@ -199,18 +186,15 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
-    <!-- 特效畫布 -->
     <canvas id="confetti-canvas"></canvas>
 
     <!-- 勝利彈窗 -->
     <div id="win-modal" class="fixed inset-0 z-[1000] hidden flex items-center justify-center opacity-0 transition-opacity duration-300">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-[90%] shadow-2xl transform scale-90 transition-transform duration-300 text-center relative overflow-hidden">
             <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
-            
             <div class="mb-4 text-6xl">🏆</div>
             <h3 class="text-2xl font-bold text-gray-800 mb-1">恭喜完成!</h3>
             <p class="text-sm text-gray-400 mb-6 uppercase tracking-wider">Mission Complete</p>
-            
             <div class="grid grid-cols-2 gap-4 mb-8">
                 <div class="bg-indigo-50 p-3 rounded-xl">
                     <span class="block text-xs text-indigo-400 font-bold uppercase">時間 Time</span>
@@ -221,14 +205,9 @@
                     <span id="modal-moves" class="text-xl font-bold text-purple-700">0</span>
                 </div>
             </div>
-
             <div class="space-y-3">
-                <button onclick="resetGame(true)" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-lg shadow-indigo-200">
-                    再玩一次 <span class="text-xs font-normal opacity-80 ml-1">Play Again</span>
-                </button>
-                <button onclick="closeModal(); showSection('album')" class="w-full py-3 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 font-bold rounded-xl transition">
-                    返回相簿 <span class="text-xs font-normal opacity-60 ml-1">Back to Album</span>
-                </button>
+                <button onclick="resetGame(true)" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition shadow-lg shadow-indigo-200">再玩一次 Play Again</button>
+                <button onclick="closeModal(); showSection('album')" class="w-full py-3 bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 font-bold rounded-xl transition">返回相簿 Back to Album</button>
             </div>
         </div>
     </div>
@@ -242,12 +221,8 @@
             </div>
         </div>
         <div class="space-x-2">
-            <button onclick="showSection('album')" class="px-3 md:px-5 py-2 rounded-full bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition text-sm font-medium shadow-sm">
-                相簿 <span class="hidden md:inline text-xs opacity-60 ml-1">Album</span>
-            </button>
-            <button onclick="showSection('puzzle')" class="px-3 md:px-5 py-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition text-sm font-medium shadow-md shadow-indigo-200">
-                拼圖 <span class="hidden md:inline text-xs opacity-80 ml-1">Puzzle</span>
-            </button>
+            <button onclick="showSection('album')" class="px-3 md:px-5 py-2 rounded-full bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 hover:border-gray-300 transition text-sm font-medium shadow-sm">相簿 Album</button>
+            <button onclick="showSection('puzzle')" class="px-3 md:px-5 py-2 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition text-sm font-medium shadow-md shadow-indigo-200">拼圖 Puzzle</button>
         </div>
     </nav>
 
@@ -257,18 +232,16 @@
         <section id="album-section" class="space-y-8 animate-fade-in">
             <div class="text-center max-w-2xl mx-auto">
                 <h2 class="text-3xl font-bold text-gray-800">伯大尼150周年 <span class="block text-lg font-normal text-gray-400 mt-1">Celebrates 150 Years</span></h2>
-                <p class="text-gray-500 mt-2">選擇一張照片，開始您的拼圖挑戰。<br><span class="text-xs opacity-70">Choose a photo to start the puzzle challenge.</span></p>
+                <p class="text-gray-500 mt-2">選擇一張照片，開始您的拼圖挑戰。</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
-                <!-- 相片卡片 -->
+                <!-- 相片 1 -->
                 <div class="group relative overflow-hidden rounded-2xl shadow-lg bg-white cursor-pointer transform hover:-translate-y-1 transition duration-300" onclick="startPuzzle('https://www.hkapa.edu/f/academy/69992/1334c750/001.jpg?auto=format&fit=crop&w=600&q=80', '伯大尼古蹟校園', 'Béthanie Campus')">
                     <div class="relative h-64 overflow-hidden">
                         <img src="https://www.hkapa.edu/f/academy/69992/1334c750/001.jpg?auto=format&fit=crop&w=600&q=80" alt="伯大尼古蹟校園" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
                         <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">
-                                ▶ 開始 Start
-                            </div>
+                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">▶ 開始 Start</div>
                         </div>
                     </div>
                     <div class="p-5">
@@ -278,13 +251,12 @@
                     </div>
                 </div>
 
+                <!-- 相片 2 -->
                 <div class="group relative overflow-hidden rounded-2xl shadow-lg bg-white cursor-pointer transform hover:-translate-y-1 transition duration-300" onclick="startPuzzle('https://www.hkapa.edu/f/academy/69992/1334c750/005_bethanie_1761895895.jpg?auto=format&fit=crop&w=600&q=80', '伯大尼小教堂', 'Bethanie Chapel')">
                     <div class="relative h-64 overflow-hidden">
                         <img src="https://www.hkapa.edu/f/academy/69992/1334c750/005_bethanie_1761895895.jpg?auto=format&fit=crop&w=600&q=80" alt="伯大尼小教堂" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
                         <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">
-                                ▶ 開始 Start
-                            </div>
+                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">▶ 開始 Start</div>
                         </div>
                     </div>
                     <div class="p-5">
@@ -294,13 +266,12 @@
                     </div>
                 </div>
 
+                <!-- 相片 3 -->
                 <div class="group relative overflow-hidden rounded-2xl shadow-lg bg-white cursor-pointer transform hover:-translate-y-1 transition duration-300" onclick="startPuzzle('https://www.hkapa.edu/f/academy/69992/1334c750/007_bethanie_1761897567.jpg?auto=format&fit=crop&w=600&q=80', '伯大尼劇院', 'Béthanie Theatre')">
                     <div class="relative h-64 overflow-hidden">
                         <img src="https://www.hkapa.edu/f/academy/69992/1334c750/007_bethanie_1761897567.jpg?auto=format&fit=crop&w=600&q=80" alt="伯大尼劇院" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
                         <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">
-                                ▶ 開始 Start
-                            </div>
+                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">▶ 開始 Start</div>
                         </div>
                     </div>
                     <div class="p-5">
@@ -310,13 +281,12 @@
                     </div>
                 </div>
 
+                <!-- 相片 4 -->
                 <div class="group relative overflow-hidden rounded-2xl shadow-lg bg-white cursor-pointer transform hover:-translate-y-1 transition duration-300" onclick="startPuzzle('http://hkapa.edu/f/academy/69992/1334c750/006_bethanie.jpg?auto=format&fit=crop&w=600&q=80', '包玉剛禮堂', 'Sir YK Pao Studio')">
                     <div class="relative h-64 overflow-hidden">
                         <img src="http://hkapa.edu/f/academy/69992/1334c750/006_bethanie.jpg?auto=format&fit=crop&w=600&q=80" alt="包玉剛禮堂" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
                         <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">
-                                ▶ 開始 Start
-                            </div>
+                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">▶ 開始 Start</div>
                         </div>
                     </div>
                     <div class="p-5">
@@ -326,13 +296,12 @@
                     </div>
                 </div>
 
+                <!-- 相片 5 -->
                 <div class="group relative overflow-hidden rounded-2xl shadow-lg bg-white cursor-pointer transform hover:-translate-y-1 transition duration-300" onclick="startPuzzle('https://www.hkapa.edu/f/academy/69992/1334c750/APA021.jpg?auto=format&fit=crop&w=600&q=80', '伯大尼博物館', 'Béthanie Museum')">
                     <div class="relative h-64 overflow-hidden">
                         <img src="https://www.hkapa.edu/f/academy/69992/1334c750/APA021.jpg?auto=format&fit=crop&w=600&q=80" alt="法國巴黎銀行伯大尼博物館" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
                         <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition duration-300 flex items-center justify-center backdrop-blur-[2px]">
-                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">
-                                ▶ 開始 Start
-                            </div>
+                            <div class="bg-white/20 backdrop-blur-md border border-white/30 text-white px-6 py-2 rounded-full font-bold shadow-xl">▶ 開始 Start</div>
                         </div>
                     </div>
                     <div class="p-5">
@@ -346,7 +315,6 @@
 
         <!-- 拼圖區塊 -->
         <section id="puzzle-section" class="hidden flex flex-col items-center space-y-6 animate-fade-in">
-            <!-- 遊戲儀表板 -->
             <div class="w-full max-w-4xl flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
                 <div class="flex items-center gap-4">
                     <div class="text-left">
@@ -354,7 +322,6 @@
                         <span id="puzzle-title-en" class="text-xs text-gray-400 font-normal">Puzzle Game</span>
                     </div>
                 </div>
-                
                 <div class="flex gap-4 md:gap-8">
                     <div class="text-center">
                         <span class="block text-[10px] uppercase text-gray-400 font-bold tracking-wider">時間 Time</span>
@@ -368,22 +335,14 @@
             </div>
 
             <p id="puzzle-status" class="text-indigo-600 font-medium bg-indigo-50 px-6 py-2 rounded-full text-sm text-center">
-                將碎片拖曳到正確的位置！<br><span class="text-xs opacity-75">Drag pieces to the correct position!</span>
+                開始挑戰！
             </p>
 
-            <!-- 主遊戲容器 -->
-            <div class="w-full max-w-6xl bg-white p-6 md:p-10 rounded-3xl shadow-2xl flex flex-col space-y-10 items-center border border-gray-100 relative">
-                <!-- 裝飾背景 -->
+            <div class="w-full max-w-6xl bg-white p-6 md:p-10 rounded-3xl shadow-2xl flex flex-col space-y-10 items-center border border-gray-100 relative overflow-hidden">
                 <div class="absolute top-0 right-0 w-64 h-64 bg-indigo-50 rounded-full filter blur-3xl opacity-50 -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
-                
-                <!-- 佈局容器 -->
-                <div class="flex flex-col lg:flex-row items-center justify-center gap-8 xl:gap-12 w-full relative z-10">
-                    
-                    <!-- 1. 拼圖板 (放置區) -->
+                <div id="puzzle-container-wrapper" class="flex flex-col lg:flex-row items-center justify-center gap-8 xl:gap-12 w-full relative z-10">
                     <div class="flex flex-col items-center space-y-3">
-                        <div class="text-center">
-                            <span class="text-xs font-bold text-gray-400 uppercase tracking-widest block">放置區 Zone</span>
-                        </div>
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest block">放置區 Zone</span>
                         <div id="puzzle-board" class="puzzle-drop-zone rounded-lg overflow-hidden shadow-inner">
                             <div class="slot" data-index="0"></div>
                             <div class="slot" data-index="1"></div>
@@ -396,8 +355,6 @@
                             <div class="slot" data-index="8"></div>
                         </div>
                     </div>
-
-                    <!-- 2. 碎片池 (Dock) -->
                     <div id="pieces-dock" class="pieces-pool-dock flex flex-col">
                         <div class="flex lg:flex-col items-center justify-between mb-4 lg:mb-2 px-4 lg:px-0">
                             <div class="lg:mb-2 text-center pt-2 lg:pt-0">
@@ -405,54 +362,31 @@
                                 <span class="text-[10px] text-indigo-400 uppercase tracking-tighter block">Pieces</span>
                             </div>
                             <div class="dock-toggle-btn-container">
-                                <button onclick="toggleDock()" class="text-gray-400 hover:text-indigo-600 p-2">
-                                    <svg id="dock-icon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </button>
+                                <button onclick="toggleDock()" class="text-gray-400 hover:text-indigo-600 p-2"><svg id="dock-icon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg></button>
                             </div>
                         </div>
-                        <div id="pieces-pool" class="pieces-pool-content pb-2">
-                            <!-- 碎片會在這裡生成 -->
-                        </div>
+                        <div id="pieces-pool" class="pieces-pool-content pb-2"></div>
                     </div>
-
-                    <!-- 3. 參考圖區 -->
                     <div class="flex flex-col items-center space-y-3">
-                        <div class="text-center">
-                            <span class="text-xs font-bold text-gray-400 uppercase tracking-widest block">參考圖 Ref</span>
-                        </div>
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-widest block">參考圖 Ref</span>
                         <div class="reference-container flex items-center justify-center bg-gray-50 rounded-lg overflow-hidden border-2 border-dashed border-gray-200 group">
                             <img id="reference-img" src="" class="max-w-full max-h-full object-cover opacity-50 group-hover:opacity-100 transition-opacity duration-300" alt="參考圖">
                         </div>
                     </div>
                 </div>
-
-                <!-- 控制按鈕 -->
                 <div class="w-full flex justify-center gap-4 pt-4 border-t border-gray-100">
-                    <button onclick="resetGame(true)" class="flex items-center px-6 py-2.5 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition shadow-sm">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                        重置 Reset
-                    </button>
-                    <button onclick="showSection('album')" class="flex items-center px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200">
-                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        返回 Back
-                    </button>
+                    <button onclick="resetGame(true)" class="flex items-center px-6 py-2.5 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition shadow-sm">重置 Reset</button>
+                    <button onclick="showSection('album')" class="flex items-center px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition shadow-md shadow-indigo-200">返回 Back</button>
                 </div>
             </div>
         </section>
-
     </main>
 
     <footer class="bg-white border-t border-gray-200 mt-auto">
-        <div class="container mx-auto px-4 py-6">
-            <div class="flex flex-col md:flex-row justify-between items-center text-sm text-gray-500 gap-4">
-                <p>2026 Béthanie Puzzle</p>
-                <div class="text-center md:text-right">
-                    <p class="mb-1">資料及圖片由以下網頁提供：</p>
-                    <p class="text-xs mb-1">Information and images provided by:</p>
-                    <a href="https://www.hkapa.edu/tch/academy-stories/the-b-thanie-celebrates150-years-nurturing-the-performing-arts-talents" target="_blank" rel="noopener noreferrer" class="text-indigo-600 hover:text-indigo-800 hover:underline break-all">
-                        伯大尼走過150 年 培育演藝人才 (HKAPA)
-                    </a>
-                </div>
+        <div class="container mx-auto px-4 py-6 text-center text-sm text-gray-500">
+            <p>2026 Béthanie Puzzle</p>
+            <div class="mt-2 text-xs opacity-60">
+                <a href="https://www.hkapa.edu/tch/academy-stories/the-b-thanie-celebrates150-years-nurturing-the-performing-arts-talents" target="_blank" class="hover:underline">伯大尼走過150 年 培育演藝人才 (HKAPA)</a>
             </div>
         </div>
     </footer>
@@ -466,22 +400,20 @@
         let seconds = 0;
         let isGameActive = false;
         
-        // 尺寸定義 (4:3)
         const boardWidth = 300;
         const boardHeight = 225;
-        const slotWidth = boardWidth / gridSize;  // 100px
-        const slotHeight = boardHeight / gridSize; // 75px
+        const slotWidth = boardWidth / gridSize; 
+        const slotHeight = boardHeight / gridSize; 
         const poolScale = 0.8;
-        const poolPieceWidth = slotWidth * poolScale; // 80px
-        const poolPieceHeight = slotHeight * poolScale; // 60px
+        const poolPieceWidth = slotWidth * poolScale; 
+        const poolPieceHeight = slotHeight * poolScale; 
 
-        // 觸控拖曳全域變數
-        let touchTarget = null;
-        let currentOverSlot = null;
+        // 目前選取的碎片 (手機模式用)
+        let selectedPiece = null;
+        // 偵測裝置類型
+        const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
-        // --- 音效系統 ---
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
         function playTone(freq, type, duration, vol = 0.1) {
             if (audioCtx.state === 'suspended') audioCtx.resume();
             const osc = audioCtx.createOscillator();
@@ -508,17 +440,12 @@
             }
         };
 
-        // --- 頁面切換 ---
         function showSection(section) {
             document.getElementById('album-section').classList.toggle('hidden', section !== 'album');
             document.getElementById('puzzle-section').classList.toggle('hidden', section !== 'puzzle');
             document.getElementById('pieces-dock').classList.toggle('hidden', section !== 'puzzle');
             window.scrollTo({ top: 0, behavior: 'smooth' });
-            
-            if (section === 'album') {
-                stopTimer();
-                isGameActive = false;
-            }
+            if (section === 'album') { stopTimer(); isGameActive = false; deselectPiece(); }
         }
 
         function toggleDock() {
@@ -530,28 +457,15 @@
             }
         }
 
-        // --- 計時器 ---
-        function startTimer() {
-            stopTimer();
-            seconds = 0;
-            updateTimerDisplay();
-            timerInterval = setInterval(() => {
-                seconds++;
-                updateTimerDisplay();
-            }, 1000);
-        }
-
+        function startTimer() { stopTimer(); seconds = 0; updateTimerDisplay(); timerInterval = setInterval(() => { seconds++; updateTimerDisplay(); }, 1000); }
         function stopTimer() { clearInterval(timerInterval); }
-
         function updateTimerDisplay() {
             const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
             const secs = (seconds % 60).toString().padStart(2, '0');
-            const timeStr = `${mins}:${secs}`;
-            document.getElementById('game-timer').innerText = timeStr;
-            document.getElementById('modal-time').innerText = timeStr;
+            document.getElementById('game-timer').innerText = `${mins}:${secs}`;
+            document.getElementById('modal-time').innerText = `${mins}:${secs}`;
         }
 
-        // --- 遊戲初始化 ---
         function startPuzzle(imgUrl, titleZh, titleEn) {
             currentImg = imgUrl;
             document.getElementById('reference-img').src = imgUrl;
@@ -566,20 +480,37 @@
             placedCount = 0;
             moveCount = 0;
             isGameActive = true;
+            deselectPiece();
             document.getElementById('move-count').innerText = '0';
             document.getElementById('puzzle-board').style.gap = '2px';
-            updateStatus('將碎片拖曳到正確的位置！', 'Drag pieces to the correct position!');
+            
+            if (isTouchDevice) {
+                updateStatus('手機模式：點擊碎片後點擊空格放置', 'Mobile Mode: Click piece then click slot');
+            } else {
+                updateStatus('電腦模式：請直接拖曳碎片到正確位置', 'Desktop Mode: Drag and Drop pieces');
+            }
             startTimer();
 
             const slots = document.querySelectorAll('.slot');
             slots.forEach(slot => {
                 slot.innerHTML = '';
                 slot.style.border = '1px dashed #94a3b8';
-                slot.classList.remove('drag-over');
-                // Desktop
-                slot.addEventListener('dragover', handleDragOver);
-                slot.addEventListener('dragleave', handleDragLeave);
-                slot.addEventListener('drop', handleDrop);
+                
+                // 移除所有舊事件
+                slot.onclick = null;
+                slot.ondragover = null;
+                slot.ondragleave = null;
+                slot.ondrop = null;
+
+                if (isTouchDevice) {
+                    // 手機：點擊槽位
+                    slot.onclick = () => handleSlotClick(slot);
+                } else {
+                    // 電腦：拖放槽位
+                    slot.addEventListener('dragover', handleDragOver);
+                    slot.addEventListener('dragleave', handleDragLeave);
+                    slot.addEventListener('drop', handleDrop);
+                }
             });
             
             const pool = document.getElementById('pieces-pool');
@@ -590,21 +521,23 @@
                 const piece = document.createElement('div');
                 piece.className = 'puzzle-piece';
                 piece.id = `piece-${idx}`;
-                piece.draggable = true;
                 
                 const row = Math.floor(idx / 3);
                 const col = idx % 3;
                 piece.style.backgroundImage = `url(${currentImg})`;
                 piece.style.backgroundPosition = `-${col * poolPieceWidth}px -${row * poolPieceHeight}px`;
                 
-                // Desktop Events
-                piece.addEventListener('dragstart', handleDragStart);
-                piece.addEventListener('mousedown', () => sounds.click());
-
-                // Mobile Touch Events
-                piece.addEventListener('touchstart', handleTouchStart, {passive: false});
-                piece.addEventListener('touchmove', handleTouchMove, {passive: false});
-                piece.addEventListener('touchend', handleTouchEnd);
+                if (isTouchDevice) {
+                    piece.draggable = false;
+                    piece.onclick = (e) => {
+                        e.stopPropagation();
+                        handlePieceClick(piece);
+                    };
+                } else {
+                    piece.draggable = true;
+                    piece.addEventListener('dragstart', handleDragStart);
+                    piece.addEventListener('mousedown', () => sounds.click());
+                }
 
                 pool.appendChild(piece);
             });
@@ -614,129 +547,76 @@
             document.getElementById('puzzle-status').innerHTML = `${zh}<br><span class="text-xs opacity-75">${en}</span>`;
         }
 
-        // --- Desktop DnD 邏輯 ---
-        function handleDragStart(e) { e.dataTransfer.setData('text/plain', e.target.id); }
-        function handleDragOver(e) { e.preventDefault(); if (!e.currentTarget.hasChildNodes()) e.currentTarget.classList.add('drag-over'); }
-        function handleDragLeave(e) { e.currentTarget.classList.remove('drag-over'); }
+        // --- 電腦版拖曳邏輯 ---
+        function handleDragStart(e) { 
+            e.dataTransfer.setData('text/plain', e.target.id); 
+            e.dataTransfer.effectAllowed = 'move';
+        }
+        function handleDragOver(e) { 
+            e.preventDefault(); 
+            if (!e.currentTarget.hasChildNodes()) e.currentTarget.classList.add('drag-over'); 
+        }
+        function handleDragLeave(e) { 
+            e.currentTarget.classList.remove('drag-over'); 
+        }
         function handleDrop(e) {
             e.preventDefault();
+            const target = e.currentTarget;
+            target.classList.remove('drag-over');
             const pieceId = e.dataTransfer.getData('text/plain');
-            const targetSlot = e.target.closest('.slot');
-            processPlacement(pieceId, targetSlot);
+            processPlacement(pieceId, target);
         }
 
-        // --- Mobile Touch 核心優化邏輯 ---
-        function handleTouchStart(e) {
-            if (!isGameActive) return;
-            touchTarget = e.currentTarget;
-            if (touchTarget.classList.contains('placed')) return;
-            
-            e.preventDefault(); // 禁止頁面捲動
+        // --- 手機版點擊邏輯 ---
+        function handlePieceClick(piece) {
+            if (!isGameActive || piece.classList.contains('placed')) return;
+            if (selectedPiece === piece) { deselectPiece(); return; }
+            deselectPiece();
+            selectedPiece = piece;
+            piece.classList.add('selected');
+            document.getElementById('puzzle-board').classList.add('has-selection');
             sounds.click();
-            touchTarget.classList.add('dragging');
-            
-            const touch = e.touches[0];
-            movePieceTo(touch.clientX, touch.clientY);
         }
 
-        function handleTouchMove(e) {
-            if (!touchTarget || !isGameActive) return;
-            e.preventDefault();
-            const touch = e.touches[0];
-            movePieceTo(touch.clientX, touch.clientY);
-
-            // 手指正下方偵測 (雖然碎片已移至上方，但我們偵測手指接觸點下的格子)
-            const el = document.elementFromPoint(touch.clientX, touch.clientY);
-            const slot = el ? el.closest('.slot') : null;
-
-            if (currentOverSlot && currentOverSlot !== slot) {
-                currentOverSlot.classList.remove('drag-over');
-            }
-
-            if (slot && !slot.hasChildNodes()) {
-                slot.classList.add('drag-over');
-                currentOverSlot = slot;
-            } else {
-                currentOverSlot = null;
-            }
+        function handleSlotClick(slot) {
+            if (!isGameActive || !selectedPiece || slot.hasChildNodes()) return;
+            processPlacement(selectedPiece.id, slot);
         }
 
-        function handleTouchEnd(e) {
-            if (!touchTarget || !isGameActive) return;
-            
-            const pieceId = touchTarget.id;
-            const targetSlot = currentOverSlot;
-
-            touchTarget.classList.remove('dragging');
-            if (currentOverSlot) currentOverSlot.classList.remove('drag-over');
-            
-            processPlacement(pieceId, targetSlot);
-            
-            touchTarget = null;
-            currentOverSlot = null;
+        function deselectPiece() {
+            if (selectedPiece) { selectedPiece.classList.remove('selected'); selectedPiece = null; }
+            document.getElementById('puzzle-board').classList.remove('has-selection');
         }
 
-        // 優化後的位移：強制讓碎片懸浮在手指上方 100px
-        function movePieceTo(x, y) {
-            const offsetX = 40; // 碎片寬度 80 的一半
-            const offsetY = 100; // 向上偏移 100 像素，避開手指遮擋
-            
-            touchTarget.style.left = (x - offsetX) + 'px';
-            touchTarget.style.top = (y - offsetY) + 'px';
-        }
-
-        // --- 核心判定邏輯 (滑鼠/觸控共用) ---
+        // --- 核心放置判定 (共用) ---
         function processPlacement(pieceId, targetSlot) {
             const piece = document.getElementById(pieceId);
-            if (!targetSlot || targetSlot.hasChildNodes()) {
-                // 回歸原位 (觸控時需清除固定定位樣式)
-                if (touchTarget) {
-                    piece.style.position = '';
-                    piece.style.top = '';
-                    piece.style.left = '';
-                    piece.style.zIndex = '';
-                }
-                return;
-            }
+            const pieceIndex = parseInt(pieceId.split('-')[1]);
+            const slotIndex = parseInt(targetSlot.getAttribute('data-index'));
 
             moveCount++;
             document.getElementById('move-count').innerText = moveCount;
 
-            const pieceIndex = parseInt(pieceId.split('-')[1]);
-            const slotIndex = parseInt(targetSlot.getAttribute('data-index'));
-
             if (pieceIndex === slotIndex) {
                 sounds.drop();
                 targetSlot.appendChild(piece);
+                piece.classList.remove('selected');
                 piece.classList.add('placed', 'animate-pop');
                 piece.draggable = false;
-                
-                // 移除手機事件監聽
-                piece.removeEventListener('touchstart', handleTouchStart);
-                piece.removeEventListener('touchmove', handleTouchMove);
-                piece.removeEventListener('touchend', handleTouchEnd);
                 
                 const col = pieceIndex % 3;
                 const row = Math.floor(pieceIndex / 3);
                 piece.style.backgroundPosition = `-${col * slotWidth}px -${row * slotHeight}px`;
-                piece.style.position = '';
-                piece.style.top = '';
-                piece.style.left = '';
                 
                 placedCount++;
+                deselectPiece();
                 checkWin();
             } else {
                 sounds.error();
                 piece.classList.add('animate-shake');
                 setTimeout(() => piece.classList.remove('animate-shake'), 400);
                 updateStatus('❌ 位置不對喔！', 'Wrong position!');
-                
-                if (touchTarget) {
-                    piece.style.position = '';
-                    piece.style.top = '';
-                    piece.style.left = '';
-                    piece.style.zIndex = '';
-                }
+                deselectPiece();
             }
         }
 
@@ -747,14 +627,13 @@
                 sounds.win();
                 updateStatus('🎉 完成！', 'Completed!');
                 document.getElementById('puzzle-board').style.gap = '0';
-                document.querySelectorAll('.slot').forEach(s => s.style.border = 'none');
+                document.querySelectorAll('.slot').forEach(s => { s.style.border = 'none'; s.onclick = null; });
                 document.getElementById('modal-moves').innerText = moveCount;
                 fireConfetti();
                 setTimeout(openModal, 800);
             }
         }
 
-        // --- 彈窗與特效 ---
         function resetGame(force = false) { if (force) { closeModal(); initGame(); } }
         function openModal() {
             const modal = document.getElementById('win-modal');
@@ -764,7 +643,7 @@
         function closeModal() {
             const modal = document.getElementById('win-modal');
             modal.classList.add('opacity-0');
-            modal.querySelector('div').classList.add('scale-90');
+            modal.querySelector('div').classList.remove('scale-100');
             setTimeout(() => modal.classList.add('hidden'), 300);
         }
 
@@ -789,11 +668,7 @@
                 let alive = false;
                 particles.forEach(p => {
                     p.x+=p.vx; p.y+=p.vy; p.vy+=p.grav; p.rot+=p.drot;
-                    if(p.y < canvas.height) {
-                        alive = true;
-                        ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot*Math.PI/180);
-                        ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h); ctx.restore();
-                    }
+                    if(p.y < canvas.height) { alive = true; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot*Math.PI/180); ctx.fillStyle = p.color; ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h); ctx.restore(); }
                 });
                 if(alive) requestAnimationFrame(update);
             }
